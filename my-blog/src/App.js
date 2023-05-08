@@ -5,6 +5,8 @@ import AboutPage from './pages/AboutPage';
 import ArticlesListPage from './pages/ArticlesListPage';
 import ArticlePage from './pages/ArticlePage';
 import NavigationBar from './Navigation';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignUpPage';
 
 function App() {
   return (
@@ -17,6 +19,8 @@ function App() {
             <Route path='/about' element={<AboutPage />} />
             <Route path='/article-list' element={<ArticlesListPage />} />
             <Route path='/article/:articleId' element={<ArticlePage />} />
+            <Route path='/login' element={<LoginPage />} />
+            <Route path='/signUp' element={<SignupPage />} />
           </Routes>
         </div>
       </div>

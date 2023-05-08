@@ -1,34 +1,75 @@
 import express from 'express';
 import {db, connectToDB} from './db.js'
+import fs from 'fs';
+import admin from 'firebase-admin';
+
+const credentials = JSON.parse(
+    fs.readFileSync('./credentials.json')
+);
+
+admin.initializeApp({
+    credential: admin.credential.cert(credentials),
+});
 
 const app = express(); // create a new express app
 app.use(express.json());
 
-app.get('/hello', (req, res) => {
-    res.send("Hello! How do you do?");
-});
+app.use(async (req, res, next) => {
+    const { authtoken } = req.headers;
+    req.user = {};
+    if (authtoken) {
+        try {
+            req.user = await admin.auth().verifyIdToken(authtoken);
+        } catch (e) {
+            return res.sendStatus(400);
+        }
+    }
+    next();
+})
 
 app.get('/api/articles/:name', async (req, res) => {
-    const {name} = req.params;
+    const { name } = req.params;
+    const { uid } = req.user;
+
     const article = await db.collection('articles').findOne({name});
+
     if (article) {
+        const upvoteIds = article.upvoteIds || [];
+        article.canUpvote = uid && !upvoteIds.includes(uid);
         res.json(article);
     }
     else {
         res.sendStatus(404);
     }
+});
 
-})
+app.use((req, res, next) => {
+    if (req.user) {
+        next();
+    }
+    else {
+        res.sendStatus(401);
+    }
+});
 
 app.put('/api/articles/:name/upvote', async (req, res) => {
-    const { name } = req.params
-    await db.collection('articles').updateOne({name}, {
-        $inc: {votes: 1},
-    });
-    const article = await db.collection('articles').findOne({name})
+    const { name } = req.params;
+    const {uid} = req.user;
+
+    const article = await db.collection('articles').findOne({name});
 
     if (article) {
-        res.send(`The new vote count for ${name} is ${article.votes}`);
+        const upvoteIds = article.upvoteIds || [];
+        const canUpvote = uid && !upvoteIds.includes(uid);
+
+        if (canUpvote) {
+            await db.collection('articles').updateOne({name}, {
+                $inc: {votes: 1},
+                $push: {upvoteIds: uid}
+            });
+            const updatedArticle = await db.collection('articles').findOne({name})
+            res.json(updatedArticle);
+        }
     }
     else {
         res.sendStatus(404);
@@ -36,15 +77,17 @@ app.put('/api/articles/:name/upvote', async (req, res) => {
 });
 
 app.post('/api/articles/:name/comment', async (req, res) => {
-    const {postedBy, comment} = req.body
-    const { name } = req.params
+    const {comment} = req.body;
+    const { name } = req.params;
+    const {email} = req.user;
+
     await db.collection('articles').updateOne({name}, {
-        $push: {comments: {postedBy, comment}},
+        $push: {comments: {postedBy: email, comment}},
     });
     const article = await db.collection('articles').findOne({name})
 
     if (article) {
-        res.send(article.comments);
+        res.send(article);
     }
     else {
         res.sendStatus(404);
