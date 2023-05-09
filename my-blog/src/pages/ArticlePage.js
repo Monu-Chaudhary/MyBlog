@@ -22,7 +22,7 @@ const ArticlePage = () => {
             const response = await axios.get(`/api/articles/${articleId}/`, {headers});
             setArticleInfo(response.data)
         });
-        if (isLoading) loadArticleInfo();
+        if (!isLoading) loadArticleInfo();
     }, [user, isLoading]);
 
     let article = articles.find(article => article.name === articleId)
